@@ -38,8 +38,8 @@ from losses import build_loss
 # CONFIGURATION
 # ============================================================
 CONFIG = {
-    'data_dir':  'D:/PhD Work III/INSAT 3DR HEM/IR_UNet/Data/128_128',
-    'train_dir': 'D:/PhD Work III/INSAT 3DR HEM/IR_UNet/ablation_study',
+    'data_dir':  'path/Data/128_128',
+    'train_dir': 'path/IR_UNet/ablation_study',
 
     'batch_size':  8,
     'epochs':      200,
