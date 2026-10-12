@@ -4,7 +4,7 @@ Case Study Data Generation Pipeline for LR_UNET (3 inputs, 2 outputs)
 - Loads INSAT-3D HEM GeoTIFFs for a specific continuous time period
 - Ensures temporal continuity and identifies gaps
 - Resamples to user-specified spatial resolution
-- Creates sliding windows: 3 input frames → 2 output frames
+- Creates sliding windows: 3 input frames → n output frames
 - Maintains chronological order (no shuffling/splitting)
 - Designed for validation/case study scenarios
 - Detects and replaces outlier values with local mean of neighbors
@@ -34,8 +34,8 @@ warnings.filterwarnings('ignore')
 
 CASE_STUDY_CONFIG = {
     # ===== DATA PATHS =====
-    'base_path': r'D:\PhD Work III\INSAT 3DR HEM',
-    'output_dir': r'D:\PhD Work III\INSAT 3DR HEM/case_study/cs_13_jun_24',
+    'base_path': r'path',
+    'output_dir': r'path/output_dir_name',
     
     # ===== TEMPORAL SELECTION =====
     'start_datetime': '2024-06-13 18:30',
