@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Training Pipeline for SA-IRUNet
-================================
-Dynamic in/out channels, min-max normalisation, best+final checkpoints only.
-Losses are provided by losses.py (selected via CONFIG['loss_function']).
+Training pipeline for SA-IRUNet.
+
+Dynamic in/out channels, min-max normalisation, best and final checkpoints.
+Losses are provided by losses.py and selected via CONFIG['loss_function'].
 """
 
 import gc
@@ -29,7 +29,6 @@ import matplotlib.pyplot as plt
 
 from thop import profile
 
-# ------------------------------------------------------------------ imports
 from IR_UNET import SAIRUNet
 from losses import build_loss
 
@@ -46,10 +45,8 @@ CONFIG = {
     'learning_rate': 1e-4,
     'weight_decay':  1e-5,
 
-    'loss_function': 'rain_mse',          # 'mse' | 'mae' | 'huber' | 'rain_mse'
+    'loss_function': 'mse',               # 'mse' | 'mae' | 'huber'
     'huber_delta':   1.0,
-    'rain_threshold': 0.05,
-    'rain_weight':    5.0,
 
     'in_channels':  None,            # auto-detect
     'out_channels': None,            # auto-detect
@@ -85,7 +82,6 @@ CONFIG = {
     'max_lead_steps':       6,
     'save_all_checkpoints': False,
 
-    # verbosity
     'verbose_epoch_line':  True,
     'verbose_every_n':     1,
     'verbose_on_events':   True,
@@ -130,7 +126,6 @@ class DataNormalizer:
         self.epsilon = epsilon
         self.norm_params = None
 
-    # ---- fit / transform ----
     def fit(self, features, labels):
         self.norm_params = {
             'feat_min':  float(features.min()),
@@ -166,7 +161,6 @@ class DataNormalizer:
                       (p['norm_max'] - p['norm_min'] + self.epsilon)
         return labels_norm * (p['label_max'] - p['label_min']) + p['label_min']
 
-    # ---- persistence ----
     def save_params(self, save_path):
         if self.norm_params:
             Path(save_path).parent.mkdir(parents=True, exist_ok=True)
@@ -177,7 +171,6 @@ class DataNormalizer:
         with open(load_path, 'r') as f:
             self.norm_params = json.load(f)
 
-    # ---- helpers ----
     def _require(self):
         if self.norm_params is None:
             raise ValueError("Normalizer not fitted. Call fit() first.")
@@ -550,8 +543,6 @@ def get_model_unique_name(config):
     loss = config['loss_function'].upper()
     if loss == 'HUBER':
         loss = f"HUBER_delta{config.get('huber_delta', 1.0)}"
-    elif loss == 'RAIN_MSE':
-        loss = f"RAINMSE_w{config.get('rain_weight', 25)}"
 
     aug = f"_aug{config['augmentation_factor']}x" if config.get('use_augmentation') else ""
     nrm = "_norm" if config.get('normalize_data') else ""
@@ -614,7 +605,7 @@ def find_existing_model_with_same_config(base_train_dir, current_config):
 
     keys = [
         'data_dir', 'batch_size', 'epochs', 'learning_rate', 'weight_decay',
-        'loss_function', 'huber_delta', 'rain_threshold', 'rain_weight',
+        'loss_function', 'huber_delta',
         'num_workers', 'pin_memory', 'prefetch_factor',
         'scheduler_patience', 'scheduler_factor', 'scheduler_min_delta',
         'early_stop_patience', 'min_lr',
@@ -679,8 +670,7 @@ def main():
         normalizer.fit(train_data_raw['features'], train_data_raw['labels'])
 
         lab_norm = normalizer.transform_labels(train_data_raw['labels'])
-        thr = CONFIG.get('rain_threshold', 0.05)
-        wet_pct = float((lab_norm > thr).mean() * 100)
+        wet_pct = float((lab_norm > 0).mean() * 100)
 
         Log.section("Normalisation")
         p = normalizer.norm_params
@@ -688,9 +678,7 @@ def main():
         Log.kv("Labels range",    f"[{p['label_min']:.4f}, {p['label_max']:.4f}]")
         Log.kv("Output range",    f"[{p['norm_min']}, {p['norm_max']}]")
         Log.kv("Label mean/std",  f"{lab_norm.mean():.4f} / {lab_norm.std():.4f}")
-        Log.kv(f"Wet pixels (>{thr})", f"{wet_pct:.3f}%")
-        if wet_pct < 3.0:
-            Log.kv("Note", "wet fraction < 3% - rain-weighted loss recommended")
+        Log.kv("Wet pixels",      f"{wet_pct:.3f}%")
 
     # ---------- output dir ----------
     base_train_dir = get_base_train_dir(CONFIG)
