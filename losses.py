@@ -1,16 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-Created on Wed Sep 30 12:53:50 2026
+Loss functions for the IR-UNet_plus training pipeline.
 
-@author: ectyf
-"""
-
-# -*- coding: utf-8 -*-
-"""
-Loss functions for IR-UNet_plus training pipeline
-=================================================
-- RainWeightedMSELoss : rain-weighted MSE (prevents collapse on sparse rainfall)
-- HuberLoss           : smooth L1 / Huber loss
+Available losses:
+    MSE   -> nn.MSELoss
+    MAE   -> nn.L1Loss
+    Huber -> HuberLoss (smooth L1)
 """
 
 import torch
@@ -20,29 +15,6 @@ import torch.nn as nn
 # ============================================================
 # LOSSES
 # ============================================================
-class RainWeightedMSELoss(nn.Module):
-    """
-    Rain-weighted Mean Squared Error.
-
-    Pixels where the target exceeds `rain_threshold` receive a weight of
-    `rain_weight`, others receive weight 1.0. This up-weights the sparse
-    rainy pixels so the network does not collapse to predicting zeros.
-    """
-
-    def __init__(self, rain_threshold=0.05, rain_weight=25.0):
-        super().__init__()
-        self.rain_threshold = rain_threshold
-        self.rain_weight = rain_weight
-
-    def forward(self, pred, target):
-        w = torch.where(
-            target > self.rain_threshold,
-            torch.full_like(target, self.rain_weight),
-            torch.ones_like(target),
-        )
-        return (w * (pred - target) ** 2).mean()
-
-
 class HuberLoss(nn.Module):
     """
     Huber loss (smooth L1).
@@ -62,6 +34,7 @@ class HuberLoss(nn.Module):
         q = torch.clamp(a, max=self.delta)
         l = a - q
         loss = 0.5 * q ** 2 + self.delta * l
+
         if self.reduction == 'mean':
             return loss.mean()
         if self.reduction == 'sum':
@@ -77,23 +50,13 @@ def build_loss(config):
     Build a loss module from a CONFIG dictionary.
 
     Recognised `loss_function` values:
-        'rain_mse' -> RainWeightedMSELoss
-        'mse'      -> nn.MSELoss
-        'mae'      -> nn.L1Loss
-        'huber'    -> HuberLoss
+        'mse'   -> nn.MSELoss
+        'mae'   -> nn.L1Loss
+        'huber' -> HuberLoss
     """
     lf = config['loss_function'].lower()
 
-    if lf == 'rain_mse':
-        criterion = RainWeightedMSELoss(
-            rain_threshold=config.get('rain_threshold', 0.05),
-            rain_weight=config.get('rain_weight', 25.0),
-        )
-        loss_str = (f"Rain-Weighted MSE "
-                    f"(threshold={config.get('rain_threshold', 0.05)}, "
-                    f"weight={config.get('rain_weight', 25.0)})")
-
-    elif lf == 'mse':
+    if lf == 'mse':
         criterion = nn.MSELoss()
         loss_str = "MSE"
 
@@ -102,12 +65,11 @@ def build_loss(config):
         loss_str = "MAE"
 
     elif lf == 'huber':
-        criterion = HuberLoss(delta=config.get('huber_delta', 1.0))
-        loss_str = f"Huber (delta={config.get('huber_delta', 1.0)})"
+        delta = config.get('huber_delta', 1.0)
+        criterion = HuberLoss(delta=delta)
+        loss_str = f"Huber (delta={delta})"
 
     else:
-        raise ValueError(
-            "loss_function must be 'rain_mse', 'mse', 'mae', or 'huber'"
-        )
+        raise ValueError("loss_function must be 'mse', 'mae', or 'huber'")
 
     return criterion, loss_str
